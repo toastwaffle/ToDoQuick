@@ -5,8 +5,8 @@ Contains classes for database table objects
 """
 
 from flask.ext.sqlalchemy import SQLAlchemy
-from ToDoQuick import app
-from ToDoQuick.helpers import *
+from todoquick import app
+from helpers import *
 import bcrypt
 
 db = SQLAlchemy(app)
@@ -77,7 +77,7 @@ class Task(db.Model):
     owner = db.relationship('User',
                             backref=db.backref('tasks',
                                                lazy='dynamic',
-                                               order_by=Task.end
+                                               order_by=end
                                                )
                             )
 
@@ -85,7 +85,7 @@ class Task(db.Model):
     project = db.relationship('Project',
                               backref=db.backref('tasks',
                                                  lazy='dynamic',
-                                                 order_by=Task.end
+                                                 order_by=end
                                                  )
                               )
 
@@ -94,24 +94,24 @@ class Task(db.Model):
                              remote_side=[id],
                              backref=db.backref('children',
                                                 lazy='dynamic',
-                                                order_by=Task.end
+                                                order_by=end
                                                 )
                              )
 
     tags = db.relationship('Tag',
                            secondary=task_tag_link,
                            backref='tasks',
-                           order_by=Task.end
+                           order_by=end
                            )
 
     def __init__(self,
+                 owner,
                  name,
                  description=None,
                  start=None,
                  end=None,
                  project=None,
-                 parent=None,
-                 owner):
+                 parent=None):
         self.name = name
         self.description = description
         self.start = start
@@ -144,18 +144,18 @@ class Project(db.Model):
     tags = db.relationship('Tag',
                            secondary=task_tag_link,
                            backref='projects',
-                           order_by=Project.name
+                           order_by=name
                            )
 
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     owner = db.relationship('User',
                             backref=db.backref('projects',
                                                lazy='dynamic',
-                                               order_by=Project.name
+                                               order_by=name
                                                )
                             )
 
-    def __init__(self, name, description=None, owner):
+    def __init__(self, owner, name, description=None):
         self.name = name
         self.description = description
 
@@ -176,7 +176,7 @@ class Tag(db.Model):
     owner = db.relationship('User',
                             backref=db.backref('tags',
                                                lazy='dynamic',
-                                               order_by=Tag.name
+                                               order_by=name
                                                )
                             )
 
@@ -184,12 +184,12 @@ class Tag(db.Model):
     parent = db.relationship('Tag',
                              remote_side=[id],
                              backref=db.backref('children',
-                                                lazy='dynamic',,
-                                                order_by=Tag.name
+                                                lazy='dynamic',
+                                                order_by=name
                                                 )
                              )
 
-    def __init__(self, name, parent=None, owner):
+    def __init__(self, owner, name, parent=None):
         self.name = name
 
         if isinstance(parent, Tag):

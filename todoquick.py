@@ -208,7 +208,7 @@ def task(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    task = Task.query.filter_by(id==tid).first()
+    task = Task.query.filter_by(Task.id==tid).first()
 
     if not task:
         flash('Task not found.', 'error')
@@ -242,13 +242,13 @@ def createtask(parent=None, project=None):
             flash('End date/time in wrong format, please use YYYY-MM-DD HH:MM:SS', 'error')
             return render_template('createtask.html', retry=True, fields=request.form)
 
-        task = Task(request.form['name'],
+        task = Task(session['userid'],
+                    request.form['name'],
                     None if request.form['desc'] == '' else request.form['desc'],
                     start,
                     end,
                     project,
-                    parent,
-                    session['userid'])
+                    parent)
         db.session.add(task)
         db.session.commit()
 
@@ -264,7 +264,7 @@ def taskedit(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    task = Task.query.filter_by(id==tid).first()
+    task = Task.query.filter_by(Task.id==tid).first()
     projects = Project.query.order_by(Project.name).all()
 
     if request.method == 'POST':
@@ -292,7 +292,7 @@ def tag(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    tag = Tag.query.filter_by(Tag.id=id).first()
+    tag = Tag.query.filter_by(Tag.id==id).first()
 
     if tag.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
@@ -308,7 +308,7 @@ def project(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    project = Project.query.filter_by(Project.id=id).first()
+    project = Project.query.filter_by(Project.id==id).first()
 
     if project.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
@@ -324,9 +324,9 @@ def createproject():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        project = Project(request.form['name'],
-                    None if request.form['desc'] == '' else request.form['desc'],
-                    session['userid'])
+        project = Project(session['userid'],
+                          request.form['name'],
+                          None if request.form['desc'] == '' else request.form['desc'])
         db.session.add(project)
         db.session.commit()
 
@@ -341,7 +341,7 @@ def projectedit(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    project = Project.query.filter_by(Project.id=id).first()
+    project = Project.query.filter_by(Project.id==id).first()
 
     if project.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
@@ -401,7 +401,7 @@ def profile():
 
 @app.route('/ajax/completetask/<int:tid>/')
 def ajaxcompletetask(tid):
-    task = Task.query.filter_by(id==tid).first()
+    task = Task.query.filter_by(Task.id==tid).first()
 
     if 'username' not in session:
         response = {'status': 401, 'message': 'Not logged in'}
@@ -420,7 +420,7 @@ def ajaxcompletetask(tid):
 @app.route('/ajax/changetag/<int:tagid>/task/<int:taskid>/')
 @app.route('/ajax/changetag/<int:tagid>/project/<int:projectid>/')
 def ajaxchangetag(tagid, taskid=None, projectid=None):
-    tag = Tag.query.filter_by(Tag.id=tagid).first()
+    tag = Tag.query.filter_by(Tag.id==tagid).first()
 
     if 'username' not in session:
         return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
@@ -430,7 +430,7 @@ def ajaxchangetag(tagid, taskid=None, projectid=None):
         return json.dumps({'status': 401, 'message': 'Tag not owned by user'}), 403
 
     if taskid is not None:
-        task = Task.query.filter_by(Task.id=taskid).first()
+        task = Task.query.filter_by(Task.id==taskid).first()
         if not task:
             return json.dumps({'status': 404, 'message': 'Task not found'}), 404
         elif task.owner_id != session['userid']:
@@ -445,7 +445,7 @@ def ajaxchangetag(tagid, taskid=None, projectid=None):
             return json.dumps({'status': 200, 'message': 'Tag added successfully', 'hastag': True}), 200
 
     else:
-        project = Project.query.filter_by(Project.id=projectid).first()
+        project = Project.query.filter_by(Project.id==projectid).first()
         if not project:
             return json.dumps({'status': 404, 'message': 'Project not found'}), 404
         elif project.owner_id != session['userid']:
@@ -465,9 +465,9 @@ def createtag():
     if 'username' not in session:
         return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
 
-    tag = Tag(request.form['name'],
-                parent,
-                session['userid'])
+    tag = Tag(session['userid'],
+              request.form['name'],
+              parent)
     db.session.add(tag)
     db.session.commit()
 
@@ -475,13 +475,12 @@ def createtag():
                        'message': 'Tag created.',
                        'id': tag.id,
                        'name': tag.name,
-                       'parent': tag.parent_id}),
-           200
+                       'parent': tag.parent_id}), 200
 
 
 @app.route('/ajax/edittag/<int:id>/', methods=['POST'])
 def edittag(id):
-    tag = Tag.query.filter_by(Tag.id=id).first()
+    tag = Tag.query.filter_by(Tag.id==id).first()
 
     if 'username' not in session:
         return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
@@ -506,8 +505,7 @@ def edittag(id):
                        'message': 'Tag created.',
                        'id': tag.id,
                        'name': tag.name,
-                       'parent': tag.parent_id}),
-           200
+                       'parent': tag.parent_id}), 200
 
 
 @app.route('/ajax/gettags/')
@@ -518,8 +516,4 @@ def gettags():
    tags = Tag.query.filter_by(Tag.owner_id == session['user_id']).all()
 
    return json.dumps({'status': 200,
-                      'result': [tagtodicttree(x) for x in tag.children.all()]}),
-          200
-
-if __name__ == '__main__':
-    app.run()
+                      'result': [tagtodicttree(x) for x in tag.children.all()]}), 200

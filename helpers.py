@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from flask import render_template, session, flash, request
 import random
 import string
-from ToDoQuick import app
+from todoquick import app
 import datetime
 import pytz
 from database import *
