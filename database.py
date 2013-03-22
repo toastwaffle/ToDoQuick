@@ -45,6 +45,7 @@ class User(db.Model):
     emailkey = db.Column(db.String(64))
     verified = db.Column(db.Boolean)
     timezone = db.Column(db.String(40))
+    cookiekey = db.Column(db.String(64))
 
     def __init__(self, username, email, password, name, timezone='UTC'):
         self.username = username
@@ -54,6 +55,7 @@ class User(db.Model):
         self.emailkey = random_key(64)
         self.verified = False
         self.timezone = timezone
+        self.cookiekey = ''
 
     def __repr__(self):
         return '<User %s: %s>' % (self.id, self.username)

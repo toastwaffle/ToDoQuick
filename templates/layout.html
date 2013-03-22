@@ -1,0 +1,57 @@
+<html>
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script type="text/javascript" href="{{ url_for('static', filename='scripts.js') }}"></script>
+    <title>ToDoQuick - {% block title %}{% endblock %}</title>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="main">
+            <header>
+                <a class="logo" href="{{ url_for('index') }}">&nbsp;</a>
+                <div class="header">
+                    <h1>ToDoQuick</h1>
+                    <h2>What do I need to do today?</h2>
+                </div>
+            </header>
+            {% block navigation %}
+            <nav>
+                <div class="nav-left-shift">
+                    <div class="nav-right-shift">
+                        <ul>
+                            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                            <li><a href="{{ url_for('projects') }}">Projects</a></li>
+                            <li><a href="{{ url_for('tags') }}">Tags</a></li>
+                            <li><a href="{{ url_for('profile') }}">Profile</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+                        {% endblock %}
+            <div class="content">
+                <div class="left">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        <ul class=flashes>
+                        {% for category, message in messages %}
+                          <li class="{{ category }}">{{ message }}</li>
+                        {% endfor %}
+                        </ul>
+                      {% endif %}
+                    {% endwith %}
+                    {% block content %}{% endblock %}
+                </div>
+                <div class="right">
+                    {% block sidebar %}{% endblock %}
+                </div>
+                <footer>
+                    <p>ToDoQuick &copy; 2013 Samuel Littley.</p>
+                    <a href="{{ url_for('privacy') }}">Privacy Policy</a> | <a href="{{ url_for('terms') }}">Terms and Conditions</a>
+                    <p>This site uses cookies for its core functionality. To read more, <a href="{{ url_for('terms', _anchor='cookies') }}">click here.</a></p>
+                </footer>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

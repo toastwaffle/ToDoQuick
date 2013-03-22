@@ -1,8 +1,10 @@
 #!/usr/bin/env python2
 
-from flask import Flask, session, redirect, url_for, escape, request, render_template
+from flask import Flask, session, redirect, url_for, escape, request, render_template, send_from_directory
+import os
 import datetime
 import json
+import re
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://todoquick:qWxUSx33rmev3snT@localhost/todoquick'
@@ -31,8 +33,19 @@ def login():
         if user.checkpassword(request.form['password']):
             session['username'] = user.username
             session['userid'] = user.id
+
             flash("You are now logged in.", 'info')
-            return redirect(url_for('dashboard'))
+
+            resp = redirect(url_for('dashboard'))
+
+            try:
+                if request.form['remember']=='true':
+                    user.cookiekey = random_key(64)
+                    resp.setcookie('todoquick-remember', user.username+':'+user.cookiekey)
+            except NameError:
+                pass # NameError just means the box isn't ticked
+
+            return resp
         else:
             flash("Username or password not recognised. Please try again", 'error')
             return redirect(url_for('index'))
@@ -58,6 +71,13 @@ def register():
     user = User.query.filter((email==request.form['email'])).first()
     if user:
         flash("Email Address is already in use.", 'error')
+        return render_template('index.html',
+                               css=url_for('static', filename='style.css'),
+                               register_form=request.form
+                              )
+
+    if not re.match('^[a-zA-Z0-9\.]*$', request.form['username']):
+        flash("Username invalid. Please use only alphanumeric characters and periods.", 'error')
         return render_template('index.html',
                                css=url_for('static', filename='style.css'),
                                register_form=request.form
@@ -287,6 +307,16 @@ def taskedit(id):
     return render_template('edittask.html', task=task, projects=projects)
 
 
+@app.route('/tags/')
+def tags():
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    tags = Tag.query.filter_by(Tag.owner_id==session['userid']).all()
+
+    return render_template('tags.html', tags=tags)
+
+
 @app.route('/tag/<int:id>/')
 def tag(id):
     if not is_logged_in():
@@ -301,6 +331,16 @@ def tag(id):
     tasks = Paginator(tag.tasks.order_by(Task.end).all())
 
     return render_template('tag.html', tag=tag, tasks=tasks)
+
+
+@app.route('/projects/')
+def projects():
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    project = Project.query.filter_by(Project.owner_id==session['userid']).all()
+
+    return render_template('projects.html', projects=projects)
 
 
 @app.route('/project/<int:id>/')
@@ -510,10 +550,23 @@ def edittag(id):
 
 @app.route('/ajax/gettags/')
 def gettags():
-   if 'username' not in session:
-       return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
+    if 'username' not in session:
+        return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
 
-   tags = Tag.query.filter_by(Tag.owner_id == session['user_id']).all()
+    tags = Tag.query.filter_by(Tag.owner_id == session['user_id']).all()
 
-   return json.dumps({'status': 200,
-                      'result': [tagtodicttree(x) for x in tag.children.all()]}), 200
+    return json.dumps({'status': 200,
+                       'result': [tagtodicttree(x) for x in tag.children.all()]}), 200
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@app.route('/privacy/')
+def privacy():
+    return render_template('privacy.html')
+
+@app.route('/terms/')
+def terms():
+    return render_template('terms.html')

@@ -30,6 +30,15 @@ def random_key(length):
 
 def is_logged_in():
     if 'username' not in session:
+        try:
+            cookie = request.cookies['todoquick-remember'].split(':')
+            user = User.query.filter_by(User.username==cookie[0]).first()
+            if user.cookiekey == cookie[1]:
+                session['username'] = user.username
+                session['userid'] = user.id
+                return True
+        except KeyError:
+            pass # avoid writing the next 2 lines twice
         flash('Please log in.', 'warn')
         return False
     else:
