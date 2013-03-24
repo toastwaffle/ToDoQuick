@@ -406,3 +406,23 @@ ul.flashes li.info {
     background-color: #ccffcc;
     border: 2px solid #00ff00;
 }
+
+.small {
+    font-size: 80%;
+}
+
+.large {
+    font-size: 120%;
+}
+
+.left {
+    text-align: left;
+}
+
+.right {
+    text-align: right;
+}
+
+.center {
+    text-align: center;
+}

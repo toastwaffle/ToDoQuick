@@ -1,0 +1,12 @@
+Dear {{ user.name }},
+
+Thank you for registering with ToDoQuick. To confirm registration, and get started with ToDoQuick, please click on the link below:
+
+http://localhost:5000/verify/{{ user.email }}/{{ user.emailkey }}/
+
+If you cannot click on the link, please copy and paste it into the address bar in your browser.
+
+Yours,
+
+Samuel Littley
+ToDoQuick

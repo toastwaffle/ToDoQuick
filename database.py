@@ -71,7 +71,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    start = db.Column(db.Date())
+    start = db.Column(db.DateTime())
     end = db.Column(db.DateTime())
     completed = db.Column(db.Boolean, default=False)
 
@@ -144,7 +144,7 @@ class Project(db.Model):
     description = db.Column(db.Text)
 
     tags = db.relationship('Tag',
-                           secondary=task_tag_link,
+                           secondary=project_tag_link,
                            backref='projects',
                            order_by=name
                            )

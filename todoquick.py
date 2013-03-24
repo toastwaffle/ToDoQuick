@@ -5,6 +5,7 @@ import os
 import datetime
 import json
 import re
+import pytz
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://todoquick:qWxUSx33rmev3snT@localhost/todoquick'
@@ -25,7 +26,7 @@ def index():
 
 @app.route('/login/', methods=['POST'])
 def login():
-    user = User.query.filter((username==request.form['username']) | (email==request.form['username'])).first()
+    user = User.query.filter((User.username==request.form['username']) | (User.email==request.form['username'])).first()
     if not user:
         flash("Username or password not recognised. Please try again", 'error')
         return redirect(url_for('index'))
@@ -33,6 +34,7 @@ def login():
         if user.checkpassword(request.form['password']):
             session['username'] = user.username
             session['userid'] = user.id
+            session['timezone'] = user.timezone
 
             flash("You are now logged in.", 'info')
 
@@ -42,7 +44,7 @@ def login():
                 if request.form['remember']=='true':
                     user.cookiekey = random_key(64)
                     resp.setcookie('todoquick-remember', user.username+':'+user.cookiekey)
-            except NameError:
+            except KeyError:
                 pass # NameError just means the box isn't ticked
 
             return resp
@@ -60,7 +62,7 @@ def logout():
 
 @app.route('/register/', methods=['POST'])
 def register():
-    user = User.query.filter((username==request.form['username'])).first()
+    user = User.query.filter((User.username==request.form['username'])).first()
     if user:
         flash("Username is already in use.", 'error')
         return render_template('index.html',
@@ -68,7 +70,7 @@ def register():
                                register_form=request.form
                               )
 
-    user = User.query.filter((email==request.form['email'])).first()
+    user = User.query.filter((User.email==request.form['email'])).first()
     if user:
         flash("Email Address is already in use.", 'error')
         return render_template('index.html',
@@ -97,9 +99,9 @@ def register():
     return redirect(url_for('index'))
 
 
-@app.route('/verify/<email>/<key>/')
+@app.route('/verify/<emailaddr>/<key>/')
 def verify(emailaddr,key):
-    user = User.query.filter(email==emailaddr).first()
+    user = User.query.filter(User.email==emailaddr).first()
     if not user:
         flash('Identity could not be verified.', 'error')
         return redirect(url_for('index'))
@@ -125,7 +127,7 @@ def reverify(emailaddr=None):
         if request.method == 'POST':
             emailaddr = request.form['email']
 
-        user = User.query.filter(email==emailaddr).first()
+        user = User.query.filter(Useremail==emailaddr).first()
         if not user:
             flash('Could not re-send email verification.', 'error')
         return redirect(url_for('index'))
@@ -149,7 +151,7 @@ def sendforgotpassword(emailuser=None):
     if request.method == 'POST':
         emailuser = request.form['emailuser']
 
-    user = User.query.filter((username==emailuser) | (email==emailuser)).first()
+    user = User.query.filter((User.username==emailuser) | (User.email==emailuser)).first()
     if not user:
         flash("Username/email not recognised. Please try again", 'error')
         return redirect(url_for('index'))
@@ -164,7 +166,7 @@ def sendforgotpassword(emailuser=None):
 
 @app.route('/forgotpassword/<emailaddr>/<key>/', methods=['POST', 'GET'])
 def changeforgotpassword(emailaddr, key):
-    user = User.query.filter(email==emailaddr).first()
+    user = User.query.filter(User.email==emailaddr).first()
     if not user:
         flash('Identity could not be verified.', 'error')
         return redirect(url_for('index'))
@@ -177,6 +179,7 @@ def changeforgotpassword(emailaddr, key):
 
             session['username'] = user.username
             session['userid'] = user.id
+            session['timezone'] = user.timezone
 
             flash('Your password has been changed.', 'info')
             flash("You are now logged in.", 'info')
@@ -191,7 +194,7 @@ def changeforgotpassword(emailaddr, key):
 
 @app.route('/rememberpassword/<emailuser>/')
 def rememberpassword(emailuser):
-    user = User.query.filter((username==emailuser) | (email==emailuser)).first()
+    user = User.query.filter((User.username==emailuser) | (User.email==emailuser)).first()
     if not user:
         flash("Username/email not recognised. Please try again", 'error')
         return redirect(url_for('index'))
@@ -208,19 +211,100 @@ def rememberpassword(emailuser):
 @app.route('/dashboard/')
 @app.route('/dashboard/<int:theyear>/<int:themonth>/<int:theday>/')
 def dashboard(theyear=None, themonth=None, theday=None):
-    if not is_logged_in():
-        return redirect(url_for('index'))
+    try:
+        if not is_logged_in():
+            return redirect(url_for('index'))
 
-    if theyear is not None:
-        date = datetime.date(theyear, themonth, theday)
-    else:
-        date = datetime.date.today()
+        tz = pytz.timezone(session['timezone'])
 
-    datedtasklist = Task.query.filter((owner_id==session['userid']) & ((start is None) | (start <= date)) & (end is not None)).order_by(end).all()
+        if theyear is not None:
+            tzdate = datetime.datetime(theyear,
+                                       themonth,
+                                       theday,
+                                       tzinfo=tz)
+        else:
+            try:
+                tzdate = datetime.datetime(int(request.args['date'][0:4]),
+                                           int(request.args['date'][5:7]),
+                                           int(request.args['date'][8:10]),
+                                           tzinfo=tz
+                                           )
+            except KeyError:
+                tznow = tz.fromutc(datetime.datetime.utcnow())
+                tzdate = tznow.replace(hour=0,
+                                       minute=0,
+                                       second=0,
+                                       microsecond=0)
 
-    undatedtasklist = Task.query.filter((owner_id==session['userid']) & (end is None)).order_by(id).all()
+        date = tzdate.astimezone(pytz.utc)
 
-    return render_template('dashboard.html', dated=datedtasklist, undated=undatedtasklist)
+        datedtasklist = Task.query.filter((Task.owner_id==session['userid']) & (Task.parent == None) & ((Task.start == None) | (Task.start <= date)) & (Task.end != None)).order_by(Task.end).all()
+
+        undatedtasklist = Paginator(Task.query.filter((Task.owner_id==session['userid']) & (Task.parent == None) & ((Task.start == None) | (Task.start <= date)) & (Task.end == None)).order_by(Task.id).all())
+
+        today = date.strftime('%Y-%m-%d')
+
+        day_before = tzdate - datetime.timedelta(days=1)
+        url_for_day_before = url_for('dashboard',
+                                     theyear=day_before.year,
+                                     themonth=day_before.month,
+                                     theday=day_before.day)
+
+        day_after = tzdate + datetime.timedelta(days=1)
+        url_for_day_after = url_for('dashboard',
+                                     theyear=day_after.year,
+                                     themonth=day_after.month,
+                                     theday=day_after.day)
+
+        if undatedtasklist.next:
+            url_for_next_page = url_for('dashboard',
+                                        theyear=tzdate.year,
+                                        themonth=tzdate.month,
+                                        theday=tzdate.day,
+                                        page=undatedtasklist.next)
+        else:
+            url_for_next_page = None
+
+        if undatedtasklist.prev:
+            url_for_prev_page = url_for('dashboard',
+                                        theyear=tzdate.year,
+                                        themonth=tzdate.month,
+                                        theday=tzdate.day,
+                                        page=undatedtasklist.prev)
+        else:
+            url_for_prev_page = None
+
+        return render_template('dashboard.html',
+                                dated=datedtasklist,
+                                undated=undatedtasklist,
+                                today=today,
+                                url_for_day_after=url_for_day_after,
+                                url_for_day_before=url_for_day_before,
+                                url_for_next_page=url_for_next_page,
+                                url_for_prev_page=url_for_prev_page)
+    except KeyError as e:
+        print "KeyError: %s" % e.strerror
+    except NameError as e:
+        print "NameError: %s" % e.strerror
+
+
+@app.route('/search/')
+def search():
+    try:
+        term = request.args['search']
+    except KeyError:
+        return redirect(request.referrer or url_for('dashboard'))
+
+    tasks = Paginator(Task.query.filter_by(Task.name.match(term) | Task.description.match(term)).all(), 'task')
+
+    tags = Paginator(Task.query.filter_by(Tag.name.match(term)).all(), 'tag')
+
+    projects = Paginator(Project.query.filter_by(Project.name.match(term) | Project.description.match(term)).all, 'project')
+
+    return render_template('searchresults.html',
+                           tasks=tasks,
+                           tags=tags,
+                           projects=projects)
 
 
 @app.route('/task/<int:id>/')
@@ -236,7 +320,7 @@ def task(id):
 
     if task.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(request.referrer or url_for('dashboard'))
 
     return render_template('task.html', task=task)
 
@@ -244,20 +328,34 @@ def task(id):
 @app.route('/task/create/', methods=['POST', 'GET'])
 @app.route('/task/create/parent/<int:parent>/', methods=['POST', 'GET'])
 @app.route('/task/create/project/<int:project>/', methods=['POST', 'GET'])
-@app.route('/task/create/parent/<int:parent>/project/<int:project>/', methods=['POST', 'GET'])
 def createtask(parent=None, project=None):
     if not is_logged_in():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
         try:
-            start = datetime.strptime(request.form['start'], '%Y-%m-%d')
+            if request.form['start'] != '':
+                start = datetime.strptime(request.form['start'], '%Y-%m-%d')
+                start = start.replace(tzinfo=pytz.timezone(session['timezone']))
+                start = start.astimezone(pytz.utc)
+            else:
+                start = None
+        except KeyError:
+            start = None
         except ValueError:
             flash('Start date in wrong format, please use YYYY-MM-DD', 'error')
             return render_template('createtask.html', retry=True, fields=request.form)
 
+
         try:
-            end = datetime.strptime(request.form['end'], '%Y-%m-%d %H:%M:%S')
+            if request.form['end'] != '':
+                end = datetime.strptime(request.form['end'], '%Y-%m-%d %H:%M')
+                end = end.replace(tzinfo=pytz.timezone(session['timezone']))
+                end = end.astimezone(pytz.utc)
+            else:
+                end = None
+        except KeyError:
+            end = None
         except ValueError:
             flash('End date/time in wrong format, please use YYYY-MM-DD HH:MM:SS', 'error')
             return render_template('createtask.html', retry=True, fields=request.form)
@@ -280,21 +378,45 @@ def createtask(parent=None, project=None):
 
 
 @app.route('/task/edit/<int:id>/', methods=['POST', 'GET'])
-def taskedit(id):
+def edittask(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
     task = Task.query.filter_by(Task.id==tid).first()
     projects = Project.query.order_by(Project.name).all()
 
+    if not task:
+        flash('Task not found.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if task.owner_id != session['userid']:
+        flash('An error occurred, please try again later', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+
     if request.method == 'POST':
         try:
-            task.start = datetime.strptime(request.form['start'], '%Y-%m-%d')
+            if request.form['start'] != '':
+                start = datetime.strptime(request.form['start'], '%Y-%m-%d')
+                start = start.replace(tzinfo=pytz.timezone(session['timezone']))
+                start = start.astimezone(pytz.utc)
+            else:
+                start = None
+            task.start = start
+        except KeyError:
+            task.start = None
         except ValueError:
             flash('Start date in wrong format, not changed. Please use YYYY-MM-DD', 'error')
 
         try:
-            task.end = datetime.strptime(request.form['end'], '%Y-%m-%d %H:%M:%S')
+            if request.form['end'] != '':
+                end = datetime.strptime(request.form['end'], '%Y-%m-%d %H:%M')
+                end = end.replace(tzinfo=pytz.timezone(session['timezone']))
+                end = end.astimezone(pytz.utc)
+            else:
+                end = None
+            task.end = end
+        except KeyError:
+            task.end = None
         except ValueError:
             flash('End date/time in wrong format, not changed. Please use YYYY-MM-DD HH:MM:SS', 'error')
 
@@ -305,6 +427,35 @@ def taskedit(id):
         db.session.commit()
 
     return render_template('edittask.html', task=task, projects=projects)
+
+
+@app.route('/task/delete/<int:id>/')
+def deletetask(id):
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    task = Task.query.filter_by(Task.id==id).first()
+
+    if not task:
+        flash('Task not found.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if task.owner_id != session['userid']:
+        flash('An error occurred, please try again later', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+
+    db.session.delete(task)
+    db.session.commit()
+
+    flash('Task deleted.', 'info')
+
+    try:
+        if 'task' not in request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('dashboard'))
+    except NameError:
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/tags/')
@@ -324,6 +475,10 @@ def tag(id):
 
     tag = Tag.query.filter_by(Tag.id==id).first()
 
+    if not tag:
+        flash('Tag not found.', 'error')
+        return redirect(url_for('dashboard'))
+
     if tag.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
         return redirect(url_for('dashboard'))
@@ -332,6 +487,49 @@ def tag(id):
 
     return render_template('tag.html', tag=tag, tasks=tasks)
 
+
+@app.route('/tag/create/', methods=['POST', 'GET'])
+@app.route('/tag/create/parent/<int:parent>', methods=['POST', 'GET'])
+def createtag(parent=None):
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    tag = Tag(session['userid'],
+              request.form['name'],
+              parent)
+    db.session.add(tag)
+    db.session.commit()
+
+    return redirect(request.referrer or url_for('dashboard'))
+
+
+@app.route('/tag/delete/<int:id>/')
+def deletetag(id):
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    tag = Tag.query.filter_by(Tag.id==id).first()
+
+    if not tag:
+        flash('Tag not found.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if tag.owner_id != session['userid']:
+        flash('An error occurred, please try again later', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+
+    db.session.delete(tag)
+    db.session.commit()
+
+    flash('Tag deleted.', 'info')
+
+    try:
+        if 'tag' not in request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('dashboard'))
+    except NameError:
+        return redirect(url_for('dashboard'))
 
 @app.route('/projects/')
 def projects():
@@ -350,9 +548,14 @@ def project(id):
 
     project = Project.query.filter_by(Project.id==id).first()
 
+    if not project:
+        if 'delete' not in referrer:
+            flash('Project not found.', 'error')
+        return redirect(url_for('dashboard'))
+
     if project.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(request.referrer or url_for('dashboard'))
 
     tasks = Paginator(project.tasks.order_by(Task.end).all())
 
@@ -377,15 +580,20 @@ def createproject():
         return render_template('createproject.html')
 
 @app.route('/project/edit/<int:id>/', methods=['POST', 'GET'])
-def projectedit(id):
+def editproject(id):
     if not is_logged_in():
         return redirect(url_for('index'))
 
     project = Project.query.filter_by(Project.id==id).first()
 
+    if not project:
+        if 'delete' not in referrer:
+            flash('Project not found.', 'error')
+        return redirect(url_for('dashboard'))
+
     if project.owner_id != session['userid']:
         flash('An error occurred, please try again later', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(request.referrer or url_for('dashboard'))
 
     if request.method == 'POST':
         project.name = request.form['name']
@@ -397,12 +605,35 @@ def projectedit(id):
     return render_template('editproject.html', project=project)
 
 
+@app.route('/project/delete/<int:id>/')
+def deleteproject(id):
+    if not is_logged_in():
+        return redirect(url_for('index'))
+
+    project = Project.query.filter_by(Project.id==id).first()
+
+    if not task:
+        flash('Task not found.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if project.owner_id != session['userid']:
+        flash('An error occurred, please try again later', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+
+    db.session.delete(project)
+    db.session.commit()
+
+    flash('Project deleted.', 'info')
+
+    return redirect(request.referrer or url_for('dashboard'))
+
+
 @app.route('/profile/', methods=['POST', 'GET'])
 def profile():
     if not is_logged_in():
         return redirect(url_for('index'))
 
-    user = User.query.filter(id==session['userid']).first()
+    user = User.query.filter(User.id==session['userid']).first()
     if not user:
         app.logger.error('Could not get user for profile edit')
         return redirect(url_for('logout'))
@@ -500,8 +731,9 @@ def ajaxchangetag(tagid, taskid=None, projectid=None):
             return json.dumps({'status': 200, 'message': 'Tag added successfully', 'hastag': True}), 200
 
 
-@app.route('/ajax/createtag/', methods=['POST'])
-def createtag():
+@app.route('/ajax/tag/create/', methods=['POST'])
+@app.route('/ajax/tag/create/parent/<int:parent>/', methods=['POST'])
+def ajaxcreatetag(parent=None):
     if 'username' not in session:
         return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
 
@@ -518,8 +750,8 @@ def createtag():
                        'parent': tag.parent_id}), 200
 
 
-@app.route('/ajax/edittag/<int:id>/', methods=['POST'])
-def edittag(id):
+@app.route('/ajax/tag/edit/<int:id>/', methods=['POST'])
+def ajaxedittag(id):
     tag = Tag.query.filter_by(Tag.id==id).first()
 
     if 'username' not in session:
@@ -549,7 +781,7 @@ def edittag(id):
 
 
 @app.route('/ajax/gettags/')
-def gettags():
+def ajaxgettags():
     if 'username' not in session:
         return json.dumps({'status': 401, 'message': 'Not logged in'}), 401
 
@@ -557,6 +789,59 @@ def gettags():
 
     return json.dumps({'status': 200,
                        'result': [tagtodicttree(x) for x in tag.children.all()]}), 200
+
+
+@app.route('/ajax/task/delete/<int:id>/')
+def ajaxdeletetask():
+    task = Task.query.filter_by(Task.id==tid).first()
+
+    if 'username' not in session:
+        response = {'status': 401, 'message': 'Not logged in'}
+    elif not task:
+        response = {'status': 404, 'message': 'Task not found'}
+    elif task.owner_id != session['userid']:
+        response = {'status': 401, 'message': 'Task not owned by user'}
+    else:
+        db.session.delete(task)
+        db.session.commit()
+        response = {'status': 200, 'message': 'Task deleted'}
+
+    return json.dumps(response), response['status']
+
+@app.route('/ajax/tag/delete/<int:id>/')
+def ajaxdeletetag():
+    tag = Tag.query.filter_by(Tag.id==tid).first()
+
+    if 'username' not in session:
+        response = {'status': 401, 'message': 'Not logged in'}
+    elif not tag:
+        response = {'status': 404, 'message': 'Tag not found'}
+    elif tag.owner_id != session['userid']:
+        response = {'status': 401, 'message': 'Tag not owned by user'}
+    else:
+        db.session.delete(tag)
+        db.session.commit()
+        response = {'status': 200, 'message': 'Tag deleted'}
+
+    return json.dumps(response), response['status']
+
+@app.route('/ajax/project/delete/<int:id>/')
+def ajaxdeleteproject():
+    project = Project.query.filter_by(Project.id==tid).first()
+
+    if 'username' not in session:
+        response = {'status': 401, 'message': 'Not logged in'}
+    elif not project:
+        response = {'status': 404, 'message': 'Project not found'}
+    elif project.owner_id != session['userid']:
+        response = {'status': 401, 'message': 'Project not owned by user'}
+    else:
+        db.session.delete(project)
+        db.session.commit()
+        response = {'status': 200, 'message': 'Project deleted'}
+
+    return json.dumps(response), response['status']
+
 
 @app.route('/favicon.ico')
 def favicon():

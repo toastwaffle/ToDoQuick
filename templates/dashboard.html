@@ -1,0 +1,149 @@
+{% extends 'layout.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+    <h2>Dashboard</h2>
+    <form action="{{ url_for('search') }}" method="get" id="searchform">
+        <p>
+            <input type="text" name="search" placeholder="Search" />
+            <input type="submit" />
+        </p>
+    </form>
+    <h3>Tasks for {{ today }}</h3>
+    <div id="datenav">
+        <a class="day_before" href="{{ url_for_day_before }}">-1 Day</a>
+        <a class="day_after" href="{{ url_for_day_after }}">+1 Day</a>
+        <form method="get" id="select_date">
+            <p>
+                <input type="date" name="date" value="{{ today }}" />
+                <input type="submit" />
+            </p>
+        </form>
+    </div>
+    {% if dated %}
+    <ul class="tasklist">
+        {% for task in dated %}
+        <li id="task-{{ task.id }}">
+            <input type="checkbox" onchange="complete_task({{ task.id }})">
+            <a href="{{ url_for('task', id=task.id) }}">
+                <p class="task_name">{{ task.name }}</p>
+            </a>
+            <p class="task_links">
+                <a onclick="show_details('task', {{ task.id }})">Details</a>
+                <a href="{{ url_for('taskedit', id=task.id) }}">Edit</a>
+                <a onclick="delete('task', {{ task.id }})">Delete</a>
+            </p>
+            <div class="task_details" style="display: none;">
+                <p class="task_description">{{ task.description }}</p>
+                {% if task.start != None %}
+                <p class="task_start">Start: {{ show_date(task.start, session['timezone'], '%Y-%m-%d %H:%M') }}</p>
+                {% endif %}
+                <p class="task_due">Due: {{ show_date(task.end, session['timezone'], '%Y-%m-%d %H:%M') }}</p>
+                {% if task.project != None %}
+                <p class="task_project">Project: <a href="{{ url_for('project', id=task.project_id) }}">{{ task.project.name }}</a></p>
+                {% endif %}
+                <p class="task_tags">
+                    {% for tag in get_all(task.tags) %}
+                    <span class="task_tag" id="task-{{ task.id }}-tag-{{ tag.id }}">{{ task.name }}</span>
+                    {% endfor %}
+                </p>
+                {% if task.children %}
+                <p><a onclick="show_children('task', {{ task.id }})"><span class="chilren_hidden">Show Children</span><span class="children_shown">Hide Children</span></a></p>
+                <ul class="task_children">
+                    {% for child in task.children %}
+                    <li id="task-{{ child.id }}">
+                        <input type="checkbox" onchange="complete_task({{ child.id }})">
+                        <a href="{{ url_for('task', id=child.id) }}">
+                            <p class="child_name">{{ child.name }}</p>
+                        </a>
+                    {% endfor %}
+                    <li class="show_all">
+                        <a href="{{ url_for('task', id=task.id, _anchor='children') }}">
+                            <p>Show All</p>
+                        </a>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p> No tasks with deadlines! </p>
+    {% endif %}
+    <h3>Other Tasks</h3>
+    <div id="othernav">
+        {% if undated.next %}
+        <a class="next_page" href="{{ url_for_next_page }}">Next Page</a>
+        {% endif %}
+        {% if undated.prev %}
+        <a class="prev_page" href="{{ url_for_prev_page }}">Previous Page</a>
+        {% endif %}
+        <form method="get" id="per_page">
+            <p>Tasks per page:
+                <select name="perpage">
+                {% for x in [5,10,25,50,'All'] %}
+                    {% if x == undated.perpage %}
+                    <option value="{{ x }}" selected>{{ x }}</option>
+                    {% else %}
+                    <option value="{{ x }}">{{ x }}</option>
+                    {% endif %}
+                {% endfor %}
+                </select>
+                <input type="submit" />
+            </p>
+        </form>
+    </div>
+    {% if undated.items %}
+    <ul class="tasklist">
+        {% for task in undated.items %}
+        <li id="task-{{ task.id }}">
+            <input type="checkbox" onchange="complete_task({{ task.id }})">
+            <a href="{{ url_for('task', id=task.id) }}">
+                <p class="task_name">{{ task.name }}</p>
+            </a>
+            <p class="task_links">
+                <a onclick="show_details('task', {{ task.id }})">Details</a>
+                <a href="{{ url_for('taskedit', id=task.id) }}">Edit</a>
+                <a onclick="delete('task', {{ task.id }})">Delete</a>
+            </p>
+            <div class="task_details" style="display: none;">
+                <p class="task_description">{{ task.description }}</p>
+                {% if task.start != None %}
+                <p class="task_start">Start: {{ show_date(task.start, session['timezone'], '%Y-%m-%d %H:%M') }}</p>
+                {% endif %}
+                {% if task.project != None %}
+                <p class="task_project">Project: <a href="{{ url_for('project', id=task.project_id) }}">{{ task.project.name }}</a></p>
+                {% endif %}
+                <p class="task_tags">
+                    {% for tag in get_all(task.tags) %}
+                    <span class="task_tag" id="task-{{ task.id }}-tag-{{ tag.id }}">{{ task.name }}</span>
+                    {% endfor %}
+                </p>
+                {% if task.children %}
+                <p><a onclick="show_children('task', {{ task.id }})"><span class="chilren_hidden">Show Children</span><span class="children_shown">Hide Children</span></a></p>
+                <ul class="task_children">
+                    {% for child in task.children %}
+                    <li id="task-{{ child.id }}">
+                        <input type="checkbox" onchange="complete_task({{ child.id }})">
+                        <a href="{{ url_for('task', id=child.id) }}">
+                            <p class="child_name">{{ child.name }}</p>
+                        </a>
+                    {% endfor %}
+                    <li class="show_all">
+                        <a href="{{ url_for('task', id=task.id, _anchor='children') }}">
+                            <p>Show All</p>
+                        </a>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p> No other tasks to do! </p>
+    {% endif %}
+{% endblock %}
+{% block sidebar %}
+{% include 'sidebar.html' %}
+{% endblock %}

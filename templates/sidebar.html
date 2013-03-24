@@ -1,0 +1,72 @@
+{% if task is defined %}
+<h3>Quick Create Child Task</h3>
+<p class="small right">
+    <a href="{{ url_for('createtask', parent=task.id) }}">Use full form?</a>
+</p>
+<form method="post" action="{{ url_for('createtask', parent=task.id) }}">
+{% elif project is defined %}
+<h3>Quick Create Task in Project</h3>
+<p class="small right">
+    <a href="{{ url_for('createtask', project=project.id) }}">Use full form?</a>
+</p>
+<form method="post" action="{{ url_for('createtask', project=project.id) }}">
+{% else %}
+<h3>Quick Create Task</h3>
+<p class="small right">
+    <a href="{{ url_for('createtask') }}">Use full form?</a>
+</p>
+<form method="post" action="{{ url_for('createtask') }}">
+{% endif %}
+    <p>
+        <input type="text" name="name" placeholder="Task Name" />
+    </p>
+    <p>
+        <input type="submit" />
+</form>
+{% if tag is defined %}
+<h3>Quick Create Child Tag</h3>
+<form method="post" action="{{ url_for('createtag', parent=tag.id) }}">
+    <p>
+        <input type="text" name="name" placeholder="Tag Name" />
+    </p>
+    <p>
+        <input type="submit" />
+    </p>
+</form>
+{% endif %}
+{% if task is defined %}
+<h3>Tags</h3>
+<ul class="sidebar_tag_list">
+    {% for tag in get_taglist(get_all(task.tags)) recursive %}
+    <li id="sidebar-tag-{{ tag.id }}">
+        <input type="checkbox" {% if tag.selected %} checked {% endif %} onchange="toggle_tag({{ tag.id }}, 'task', {{ task.id }})" />
+        <span><a title="Show Children" onclick="show_children('sidebar-tag', {{ tag.id }})"><span class="chilren_hidden">+</span><span class="children_shown">-</span></a> | <a href="{{ url_for('tag', id=tag.id) }}">{{ tag.name }}</a></span>
+        {% if tag.children %}
+        <ul id="sidebar-tag-children-{{ tag.id }}" style="display: none;">
+            {{ loop(tag.children) }}
+        </ul>
+        {% else %}
+        <p id="sidebar-tag-children-{{ tag.id }}" style="display: none;">No Children</p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% if project is defined %}
+<h3>Tags</h3>
+<ul class="sidebar_tag_list">
+    {% for tag in get_taglist(get_all(project.tags)) recursive %}
+    <li id="sidebar-tag-{{ tag.id }}">
+        <input type="checkbox" {% if tag.selected %} checked {% endif %} onchange="toggle_tag({{ tag.id }}, 'project', {{ project.id }})" />
+        <span><a title="Show Children" onclick="show_children('sidebar-tag', {{ tag.id }})"><span class="chilren_hidden">+</span><span class="children_shown">-</span></a> | <a href="{{ url_for('tag', id=tag.id) }}">{{ tag.name }}</a></span>
+        {% if tag.children %}
+        <ul id="sidebar-tag-children-{{ tag.id }}" style="display: none;">
+            {{ loop(tag.children) }}
+        </ul>
+        {% else %}
+        <p id="sidebar-tag-children-{{ tag.id }}" style="display: none;">No Children</p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
